@@ -55,21 +55,38 @@
   head.appendChild(closeBtn);
 
   var warn = el('div', { style: 'margin:12px 18px;padding:10px 12px;background:#fff4e5;border-left:4px solid #b35900;border-radius:6px;font-size:12.5px;color:#7a3d00' }, WARN);
+  var info = el('div', { style: 'margin:0 18px 12px;padding:10px 12px;background:#eef6ff;border-left:4px solid #0969da;border-radius:6px;font-size:12.5px;color:#0a3069' },
+    'Hanya demonstrasi: UI ini sengaja ditampilkan agar dampak terlihat. Pada kasus nyata, skrip yang sama dapat berjalan tanpa UI (tersembunyi) sehingga pengunjung/target tidak menyadari bahwa data sedang dibaca atau diubah.');
   var body = el('div', { style: 'padding:0 18px 18px' });
+  var note = el('div', { style: 'margin-top:12px;font-size:12.5px;color:#57606a' }, '');
   var out = el('pre', { style: 'background:#0d1117;color:#e6edf3;padding:12px;border-radius:8px;font-size:12px;white-space:pre-wrap;word-break:break-word;max-height:300px;overflow:auto;margin:12px 0 0' }, '');
   var actions = el('div', { style: 'display:flex;flex-wrap:wrap;gap:8px;margin-top:12px' });
-  function btn(label, fn, danger) {
+  function btn(label, fn, danger, disabled) {
     var b = el('button', {
       style: 'border:1px solid ' + (danger ? '#cf222e' : '#d0d7de') + ';background:' + (danger ? '#cf222e' : '#f6f8fa') + ';color:' + (danger ? '#fff' : '#1f2328') + ';border-radius:8px;padding:9px 12px;font-size:13px;cursor:pointer'
     }, label);
-    b.onclick = function () { fn(b); };
+    if (disabled) {
+      b.setAttribute('disabled', 'disabled');
+      b.style.opacity = '0.45';
+      b.style.cursor = 'not-allowed';
+      b.title = 'Nonaktif: aktif otomatis jika pengunjung dalam keadaan login.';
+    }
+    b.onclick = function () {
+      if (disabled) { say('Tombol nonaktif. Jika target login, tombol ini akan aktif otomatis (skrip memeriksa status sesi).'); return; }
+      fn(b);
+    };
     actions.appendChild(b);
     return b;
   }
+  function setNote(loggedIn) {
+    note.textContent = loggedIn
+      ? 'Sesi login terdeteksi — tombol aksi AKTIF (mode demo). Pada kasus nyata UI ini dapat disembunyikan sepenuhnya.'
+      : 'Tombol aksi DINONAKTIFKAN karena pengunjung belum login. Jika target login, tombol ini akan AKTIF otomatis (status sesi diperiksa oleh skrip).';
+  }
   function say(s) { out.textContent = typeof s === 'string' ? s : JSON.stringify(s, null, 2); }
 
-  box.appendChild(head); box.appendChild(warn); box.appendChild(body);
-  body.appendChild(actions); body.appendChild(out);
+  box.appendChild(head); box.appendChild(warn); box.appendChild(info); box.appendChild(body);
+  body.appendChild(actions); body.appendChild(out); body.appendChild(note);
   shadow.appendChild(box);
 
   function showPersonal() {
@@ -169,20 +186,21 @@
       var cust = {};
       try { cust = JSON.parse(r.body); } catch (e) {}
       var loggedIn = cust && cust.uid && cust.uid !== 'anonymous';
-      if (loggedIn) {
-        say('Session detected: ' + (cust.name || cust.uid));
-        btn('Show personal data', showPersonal);
-        btn('2FA status', showState);
-        btn('Disable 2FA', disable2fa, true);
-        btn('Show cookies & CSRF', showCookies);
-        btn('Reload data', showPersonal);
-      } else {
-        say('No session detected — demo login form available.');
-        btn('Show cookies & CSRF', showCookies);
-        btn('Show login form (demo)', phishingPanel);
-      }
+      say(loggedIn ? ('Session detected: ' + (cust.name || cust.uid)) : 'No session detected — action buttons are disabled.');
+      setNote(!!loggedIn);
+      btn('Show personal data', showPersonal, false, !loggedIn);
+      btn('2FA status', showState, false, !loggedIn);
+      btn('Disable 2FA', disable2fa, true, !loggedIn);
+      btn('Show cookies & CSRF', showCookies, false, !loggedIn);
+      btn('Reload data', showPersonal, false, !loggedIn);
+      if (!loggedIn) btn('Show login form (demo)', phishingPanel);
     }).catch(function () {
-      say('Could not confirm session state; showing demo login form.');
+      say('Could not confirm session state — action buttons are disabled.');
+      setNote(false);
+      btn('Show personal data', showPersonal, false, true);
+      btn('2FA status', showState, false, true);
+      btn('Disable 2FA', disable2fa, true, true);
+      btn('Show cookies & CSRF', showCookies, false, true);
       btn('Show login form (demo)', phishingPanel);
     });
   }
